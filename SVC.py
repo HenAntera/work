@@ -63,13 +63,14 @@ c=10
 clf = SVC(C=c, degree=1, kernel= "sigmoid")
 clf.fit(X_train, y_train.ravel())
 scores = cross_val_score(clf, X, y.ravel(), cv=7)
-print(mean(scores))
+print(mean(scores)) #0.5206098249576511
 y_pred = clf.predict(X_test)
 cm = confusion_matrix(y_test, y_pred)
-print(cm)
-print(accuracy_score(y_test,y_pred))
-print(recall_score(y_test, y_pred))
-print(f1_score(y_test, y_pred))
+print(cm) # [[ 76  79]
+          # [ 86 114]]
+print(accuracy_score(y_test,y_pred)) #0.5352112676056338
+print(recall_score(y_test, y_pred)) #0.57
+print(f1_score(y_test, y_pred)) #0.5801526717557252
 
 #c = np.arange(0.1, 20)
 #train_score, val_score = validation_curve(SVC(), X, y.ravel(), "C", c, cv=5)
@@ -82,7 +83,7 @@ print(f1_score(y_test, y_pred))
 #plt.ylabel('score');
 
 #param_grid = {"C": [1, 5, 10, 15, 20,], "kernel": ["linear", "poly", "rbf", "sigmoid"],
-              #"degree": [1, 3, 5, 7, 10]} #{'C': 10, 'degree': 1, 'kernel': 'sigmoid'}
+              #"degree": [1, 3, 5, 7, 10]} 
 
 #grid = GridSearchCV(SVC(), param_grid, cv=7)
 
@@ -90,7 +91,7 @@ print(f1_score(y_test, y_pred))
 
 #print(grid.best_params_)
 
-
+#best_params_ = {'C': 10, 'degree': 1, 'kernel': 'sigmoid'}
 
 
 
