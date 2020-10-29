@@ -58,25 +58,26 @@ X=StandardScaler().fit_transform(X)
 
 X_train,X_test,y_train,y_test=train_test_split(X,y,test_size=0.2)
 
-n_estim = 75
-a = 2
+n_estim = 100
+a = 1.5
 
 clf = AdaBoostRegressor(n_estimators= n_estim, random_state=0, learning_rate= a, loss="square")
 clf.fit(X_train, y_train.ravel())
 scores = cross_val_score(clf, X, y.ravel(), cv=5)
-print(scores)
+print(np.mean(scores)) #-5.030471321130165
 y_predict = clf.predict(X_test)
-print(r2_score(y_test, y_predict))
-print(mean_squared_error(y_test, y_predict))
+print(r2_score(y_test, y_predict)) #0.9876284403147888
+print(mean_squared_error(y_test, y_predict)) #196889.58404675807
+print(mean_squared_error(y_test, y_predict, squared = False)) #443.72241778701925
 
 param_grid = {"n_estimators": [10, 15, 25, 50, 75, 100], "loss": ["linear", "square", "exponential"],
-              "learning_rate": [0.01, 0.1, 1, 1.5, 2, 3]} #{'learning_rate': 2, 'loss': 'square', 'n_estimators': 75}
+              "learning_rate": [0.01, 0.1, 1, 1.5, 2, 3]} 
 
 grid = GridSearchCV(AdaBoostRegressor(), param_grid, cv=7)
 
 grid.fit(X, y.ravel())
 
-print(grid.best_params_)
+print(grid.best_params_)#{'learning_rate': 1.5, 'loss': 'square', 'n_estimators': 100}
 
 #cm = confusion_matrix(y_test, y_predict)
 #print(cm)
