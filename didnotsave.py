@@ -22,6 +22,7 @@ from tensorflow.keras.callbacks import TensorBoard, ModelCheckpoint
 from kerastuner.tuners import RandomSearch
 from kerastuner.engine.hyperparameters import HyperParameters
 import time
+from sklearn.metrics import classification_report
 import datetime
 from matplotlib import pyplot
 from keras.models import load_model
@@ -124,17 +125,17 @@ dataset = data.values
 datasets = dataset[42:,:]
 
 #%%
-signal_test = np.load("y_predict.npy")
+#signal_test = np.load("y_predict.npy")
 
-signal_test = np.reshape(signal_test, (4710,1))
+#signal_test = np.reshape(signal_test, (4710,1))
 
-signal_train = datasets[:18838,[87]]
+#signal_train = datasets[:18838,[87]]
 
-signal = np.concatenate((signal_train, signal_test), axis=0)
+#signal = np.concatenate((signal_train, signal_test), axis=0)
 
 X = datasets[:,:86]
 #%%
-X = np.concatenate((X, signal), axis=1)
+#X = np.concatenate((X, signal), axis=1)
 
 #%%
 #aaXX = np.delete(X, [6,7,20,33,34,35,35,41,42,44,55,56,57,58,76,77], axis=1)
@@ -142,7 +143,7 @@ X = np.concatenate((X, signal), axis=1)
 #X = aaXX[:,[0, 1, 3, 5, 6, 13, 15, 17, 19, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 
  #        35, 36, 38, 39, 40, 41, 42, 44, 51, 52, 53, 54, 55, 56, 57, 59, 60, 61, 62, 69, 71]]
 
-X = X[:,[0,1, 2, 4, 7, 8, 9, 10, 11, 12, 14, 16, 18, 19, 20, 21, 22, 23, 34, 
+X = X[:,[0, 1, 2, 4, 7, 8, 9, 10, 11, 12, 14, 16, 18, 19, 20, 21, 22, 23, 34, 
          37, 43, 45, 46, 47, 48, 49, 50, 58, 63, 64, 65, 66, 67, 68, 70]]
 
 #%%Split
@@ -154,7 +155,7 @@ ss = StandardScaler()
 X_trains = ss.fit_transform(X_trai)
 X_tests = ss.transform(X_tes)
 
-sc = MinMaxScaler()
+sc = MinMaxScaler(feature_range=(-1,1))
 X_trains = sc.fit_transform(X_trains)
 X_tests = sc.transform(X_tests)
 #%% Label
@@ -175,51 +176,50 @@ def split_sequences(sequences, n_steps):
 def ylabel(close, steps):
    # print(len(close))
     S = list()
-    #final_result=0
+    final_result=0
     #for i in range(len(close)-steps+1):
     for i in range(len(close)):
         # find the end of this pattern
         end_i = i + steps
         #print(end_i)
         # check if we are beyond the dataset
-        final_result=1
+        #final_result=1
         if end_i >= len(close):
             break
         for c in close[i:end_i]:
             #print(c)
             #print(close[end_i])
             #print(len(close[i:end_i]))
-            if c >= close[i]*1.5:
-                final_result=2
+            if c >= close[i]*1.05:
+                final_result=1
                 break
-            if c <= close[i]*0.975:
+            if c <= close[i]*0.95:
                final_result=0
                break
             #print(final_result)
-            if final_result==1:
-                
-                if close[end_i] > close[i]*1.01:
-                    final_result=2
-                elif close[end_i] < close[i]*0.99:
-                    final_result=0  
+            #if final_result==1:
+            if close[end_i] > close[i]:
+               final_result=1
+            elif close[end_i] < close[i]:
+               final_result=0  
             #print(final_result)
         S.append(final_result)
     #print(S)
     return array(S)
 
-X_train = split_sequences(X_trains, 12)
-X_test = split_sequences(X_tests,12)
-y_training = ylabel(X[:18839,[1]], 12)
-y_testing = ylabel(X[18837:,[1]], 12)
+X_train = split_sequences(X_trains, 24)
+X_test = split_sequences(X_tests, 24)
+y_training = ylabel(X[:18839,[1]], 24)
+y_testing = ylabel(X[18837:,[1]], 24)
 #%%
-X_train = X_train[:-12]
-y_training = y_training[12:]
-X_test =X_test[:-12]
-y_testing = y_testing[12:]
+X_train = X_train[:-24]
+y_training = y_training[24:]
+X_test =X_test[:-24]
+y_testing = y_testing[24:]
 
 
-y_train = tf.keras.utils.to_categorical(y_training, num_classes=3)
-y_test = tf.keras.utils.to_categorical(y_testing, num_classes=3)
+#y_train = tf.keras.utils.to_categorical(y_training, num_classes=3)
+#y_test = tf.keras.utils.to_categorical(y_testing, num_classes=3)
 #%%
 print(np.array(X_train).shape)
 print(np.array(X_test).shape)
@@ -247,49 +247,45 @@ LOG_DIR = f"{int(time.time())}"
 
 model = Sequential()
 
-model.add(LSTM(30, input_shape=(X_train.shape[1:]), return_sequences=True, activation="relu"))
+model.add(LSTM(20, input_shape=(X_train.shape[1:]), return_sequences=True, recurrent_dropout=0.1, activation="relu"))
 model.add(Dropout(0.2))
-model.add(LSTM(30, input_shape=(X_train.shape[1:]), return_sequences=True, activation="relu"))
-model.add(Dropout(0.3))
+model.add(LSTM(50, input_shape=(X_train.shape[1:]), activation="relu"))
+#model.add(Dropout(0.3))
 #model.add(LSTM(50, input_shape=(X_train.shape[1:]), return_sequences=True, activation="relu"))
 #model.add(LSTM(100, input_shape=(X_train.shape[1:]), return_sequences=True, activation="relu"))
 
-model.add(LSTM(30, input_shape=(X_train.shape[1:]), activation="relu"))
+#model.add(LSTM(50, input_shape=(X_train.shape[1:]), activation="relu"))
+#model.add(Dropout(0.1))
 
-
-model.add(Dense(100, activation="relu"))
+model.add(Dense(10, activation="relu"))
 model.add(Dropout(0.2))
 
 
-model.add(Dense(3, activation="softmax"))
+model.add(Dense(1, activation="sigmoid"))
 
-opt = tf.keras.optimizers.Adam(lr=1e-3, decay=1e-6)
+opt = tf.keras.optimizers.Adam(lr=0.0001, decay=1e-6)
 
-model.compile(optimizer=opt, loss='categorical_crossentropy', metrics=("accuracy"))
+model.compile(optimizer=opt, loss='binary_crossentropy', metrics=("accuracy"))
 #%% Metrics
 NAME = f"{7}-SEQ-best-{1}"
 
-print(model.summary())
+#print(model.summary())
 tensorboard = TensorBoard(log_dir=f'logs/{NAME}')
 
-file = "RNN_Final_best"  
+file = "RNN_accuracy_best_3"  
 
-#cp = tf.keras.callbacks.ModelCheckpoint(filepath=file, monitor='val_accuracy', verbose=1, save_best_only=True, mode='max')
+cp = tf.keras.callbacks.ModelCheckpoint(filepath=file, monitor='val_loss', verbose=1, save_best_only=True, mode='min')
 
-log_dir = "logs/fit25/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-tb = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1, write_grads=True)
-#es = tf.keras.callbacks.EarlyStopping(monitor='val_loss', mode='min')
-#cb_list = [tb, cp]
+#log_dir = "logs/fit25/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+#tb = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1, write_grads=True)
+es = tf.keras.callbacks.EarlyStopping(monitor='val_loss', mode='min', patience=4)
+cb_list = [cp, es]
 
 num_epochs = 20
-print(np.array(X_train).shape)
-print(np.array(X_test).shape)
-print(np.array(y_train).shape)
-print(np.array(y_test).shape)
 
-o = model.fit(X_train, y_train, epochs=num_epochs, 
-          validation_split=0.25, verbose=2, batch_size=64)#,
-          #callbacks=cb_list)
+o = model.fit(X_train, y_training, epochs=num_epochs, 
+          validation_split=0.25, verbose=2, batch_size=32,
+          callbacks=cb_list)
 
 #score = model.evaluate(X_test, y_testing, verbose=1)
 #print('Test loss:', score[0])
@@ -298,9 +294,40 @@ o = model.fit(X_train, y_train, epochs=num_epochs,
 #Test loss: 0.1902562379837036
 #Test accuracy: 0.9248986840248108
 #%% Load best model
-
+file = "RNN_accuracy_best_2" 
 saved_model = load_model(file)
-score = saved_model.evaluate(X_test, y_test, verbose=1)
+#%%
+y_prediction = saved_model.predict(X_test)
+score = saved_model.evaluate(X_test, y_testing, verbose=1)
+#%%
+print('Test set metrics:')
+print('Accuracy:', accuracy_score(y_testing, yyyy))
+print('Precision:', precision_score(y_testing, yyyy))
+print('Recall:', recall_score(y_testing, yyyy))
+print('F1-Score:', f1_score(y_testing, yyyy))
+#%%
+yyyy=[]
+for y in y_prediction:
+    if y>0.50:
+        yyyy.append(1)
+    else:       
+        yyyy.append(0)
+yyyy = array(yyyy)
+#%%
+import seaborn as sns
+
+cm = sns.heatmap(confusion_matrix(y_testing, yyyy)/np.sum(confusion_matrix(y_testing, yyyy)), annot=True, 
+            fmt='.2%', cmap='Blues')
+
+cm.set(title="Confusion Matrix",
+      xlabel="Predicted label",
+      ylabel="True label",)
+
+#%%
+print(classification_report(y_testing, yyyy))
+#%%
+print(saved_model.summary())
+
 #%% Evaluate
 print('Test loss:', score[0])
 print('Test accuracy:', score[1])
@@ -311,7 +338,8 @@ pyplot.plot(o.history['val_loss'], label='val')
 pyplot.legend()
 pyplot.show()
 #%% Predict and metrics
-yyy = saved_model.predict_classes(X_test)
+
+yyy = saved_model.predict(X_test)
 #%%
 #y_test = tf.keras.utils.to_categorical(y_testing, num_classes=3)
 #y_pred = tf.keras.utils.to_categorical(yyy, num_classes=3)
@@ -325,9 +353,9 @@ print('f1 - macro', f_macro)
 print('f1 - weighted', f_weight)
 #%%save
 
-df = pd.DataFrame(yyy)
+df = pd.DataFrame(results)
 
-filepath = 'lstm_prediction_best_2.xlsx'
+filepath = 'lstm_prediction_acc.xlsx'
 
 df.to_excel(filepath, index=False)
 #%% Hyper Tuning
@@ -398,63 +426,61 @@ def retur_pro(sign, cl, hours):
         enter = 0
         leave = 0
         # check if we are beyond the dataset
-        if end_i > len(sign):
-            print("A")
+        if end_i >= len(sign):
+            #print("A")
             break
         c = sign[i]
         #print("c:" + str(c))
         print("i:" + str(i) + " end_i:" + str(end_i))
         print("INI:" + str(cl[i]) + " FIN:" + str(cl[end_i]))
           
-        if c == 1:
-            S.append(0)
-            
         if c == 0:
-            flag_condition = False
-            for e in cl[i:end_i]:
-                if e >= cl[i]*1.05:
-                    S.append(-0.05)
-                    flag_condition=True
-                    break
-                if e <= cl[i]*0.9:
-                    S.append(0.1)
-                    flag_condition=True
-                    break
-            if not flag_condition:   
-                enter = cl[i]
-                leave = cl[end_i]
+            #flag_condition = False
+            for e in cl[i+24:end_i+24]:
+            #    if e >= cl[i]*1.04:
+             #       S.append(-0.04)
+              #      flag_condition=True
+               #     break
+                #if e <= cl[i]*0.95:
+                 #   S.append(0.05)
+                  #  flag_condition=True
+                   # break
+            #if not flag_condition:   
+                enter = cl[i+24]
+                leave = cl[end_i+24]
                 r = -(leave-enter)/enter
                 S.append(r)
+                break
                                         
-        if c == 2:
-            flag_condition = False
-            for e in cl[i:end_i]:
-                if e >= cl[i]*1.10:
-                    S.append(0.1)
-                    flag_condition=True
-                    break
-                if e <= cl[i]*0.95:
-                    S.append(-0.05)
-                    flag_condition=True
-                    break
-            if not flag_condition:   
-                enter = cl[i]
-                leave = cl[end_i]
+        if c == 1:
+            #flag_condition = False
+            for e in cl[i+24:end_i+24]:
+             #   if e >= cl[i]*1.05:
+              #      S.append(0.05)
+               #     flag_condition=True
+                #    break
+                #if e <= cl[i]*0.96:
+                 #   S.append(-0.04)
+                  #  flag_condition=True
+                   # break
+            #if not flag_condition:   
+                enter = cl[i+24]
+                leave = cl[end_i+24]
                 r = (leave-enter)/enter
                 S.append(r)
-
-    return S
+                break
+    return array(S)
                    
-results = retur_pro(yyy[7:], X_tes[7:,[1]], 12) 
+results = retur_pro(yyyy[7:], X_tes[7:,[1]], 24) 
 #%%%
 results = np.array(results)
  #%% Allocation           
             
 prob =  y_prob[7:]
 arrays=[]
-for i in range(0, len(prob), 12):
+for i in range(0, len(prob), 24):
     
-    end_i = i + 12
+    end_i = i
     if end_i > len(prob):
         break
     
@@ -468,22 +494,83 @@ for i in range(0, len(prob), 12):
         arrays.append(0.4)
     elif any( ele>=0.5 for ele in prob[i]):
         arrays.append(0.2)        
-    elif any( ele>=0.33 for ele in prob[i]):
-        arrays.append(0.1)
+    elif any( ele>=0.4 for ele in prob[i]):
+        arrays.append(0.2)
+    elif any( ele>=0.3 for ele in prob[i]):
+        arrays.append(0.4)
+    elif any( ele>=0.2 for ele in prob[i]):
+        arrays.append(0.6)   
+    elif any( ele>=0.1 for ele in prob[i]):
+        arrays.append(0.8)
+    elif any( ele>=0 for ele in prob[i]):
+        arrays.append(0)
+        
 #%%
 total = 1
 hist = []
 for idx,result in enumerate(results):
-    aloc = array[idx]
+    aloc = arrays[idx]
     total = total * (1+ aloc*result)
     hist.append(total)
 print(total)
 #1
 #1*(1+prob*retur)
+#%%
+total = 1
+hist = []
+hist.append(total)
+for result in results:
+    total = total * (1+ result-0.0005)
+    hist.append(total)
+print(total)
+#%%
+df = pd.DataFrame(results)
+
+filepath = 'lstm_prediction_Buy.xlsx'
+
+df.to_excel(filepath, index=False)
             
-            
-            
-            
+#%%
+import matplotlib.pyplot as plt
+import itertools
+
+def plot_confusion_matrix(cm, classes,
+                          normalize=True,
+                          title='Confusion matrix',
+                          cmap=plt.cm.Blues):
+    """
+    This function prints and plots the confusion matrix.
+    Normalization can be applied by setting `normalize=True`.
+    """
+    if normalize:
+        cm = cm.astype('float')*100 / cm.sum(axis=1)[:, np.newaxis]
+        print("Normalized confusion matrix")
+    else:
+        print('Confusion matrix, without normalization')
+
+    print(cm)
+
+    plt.imshow(cm, interpolation='nearest', cmap=cmap)
+    plt.title(title, fontsize=14)
+    plt.colorbar()
+    tick_marks = np.arange(len(classes))
+    plt.xticks(tick_marks, classes, rotation=45)
+    plt.yticks(tick_marks, classes)
+
+    fmt = '.2f' if normalize else 'd'
+    thresh = 35.
+    for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
+        plt.text(j, i, format(cm[i, j], fmt),
+                 horizontalalignment="center",
+                 color="white" if cm[i, j] > thresh else "black")
+
+    plt.tight_layout()
+    plt.ylabel('True label')
+    plt.xlabel('Predicted label')
+
+labels = ['Sell', 'Buy']
+
+plot_confusion_matrix(confusion_matrix(y_testing, yyyy), labels, title="LSTM \n Confusion Matrix")
             
             
             

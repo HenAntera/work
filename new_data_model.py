@@ -19,7 +19,10 @@ from sklearn.metrics import f1_score
 from sklearn.model_selection import TimeSeriesSplit
 from sklearn.model_selection import RandomizedSearchCV
 from sklearn.feature_selection import VarianceThreshold
-
+from sklearn.metrics.pairwise import laplacian_kernel
+from numpy import mean
+from mlxtend.feature_selection import SequentialFeatureSelector as SFS
+#%% Data
 data = pd.read_csv("BTC.csv",header=0)
 
 data["Unix Timestamp"] = pd.to_datetime(data["Unix Timestamp"],unit='s')
@@ -154,57 +157,61 @@ data["classification"] = data[["classification"]].shift(-1)
 
 data["classification"] = data["classification"].fillna(0)
 
-data = data.dropna()
+data = data.fillna(0)
 
-data = data.drop(labels = {'High','Low','volatility_kch','volatility_kcl','volatility_kcw','volatility_kcp','volatility_kchi',
-                           'volatility_kcli','volatility_dcl', 'volatility_dch','volume_sma_em','volume_em','volume_vpt',
-                           'trend_adx','trend_adx_pos','trend_adx_neg','trend_vortex_ind_pos','trend_vortex_ind_neg','trend_vortex_ind_diff',
-                           'trend_trix','trend_cci','trend_dpo','trend_ichimoku_conv','trend_ichimoku_base','trend_ichimoku_a',
-                           'trend_ichimoku_b','trend_visual_ichimoku_a','trend_visual_ichimoku_b','trend_aroon_up','trend_aroon_down',
-                           'trend_aroon_ind','momentum_uo','momentum_wr','momentum_roc'}, axis=1)
-
+#data = data.drop(labels = {'High','Low','volatility_kch','volatility_kcl','volatility_kcw','volatility_kcp','volatility_kchi',
+ #                          'volatility_kcli','volatility_dcl', 'volatility_dch','volume_sma_em','volume_em','volume_vpt',
+  #                         'trend_adx','trend_adx_pos','trend_adx_neg','trend_vortex_ind_pos','trend_vortex_ind_neg','trend_vortex_ind_diff',
+   #                        'trend_trix','trend_cci','trend_dpo','trend_ichimoku_conv','trend_ichimoku_base','trend_ichimoku_a',
+    #                       'trend_ichimoku_b','trend_visual_ichimoku_a','trend_visual_ichimoku_b','trend_aroon_up','trend_aroon_down',
+     #                      'trend_aroon_ind','momentum_uo','momentum_wr','momentum_roc'}, axis=1)
+data = data.drop(labels = {'High','Low'}, axis=1)
 dataset = data.values
 dataset = dataset[42:,:]
 
-X = dataset[:,:54]
-y = dataset[:,[58]]
+X = dataset[:,:86]
+y = dataset[:,[90]]
+#%%feature selection
+aaXX = np.delete(X, [6,7,20,33,34,35,35,41,42,44,55,56,57,58,76,77], axis=1)
 
-
-X_train,X_test,y_train,y_test=train_test_split(X,y,test_size=0.2, shuffle=False, random_state=0)
-
+X = aaXX[:,[2, 4, 7, 8, 9, 10, 11, 12, 14, 16, 18, 19, 20, 21, 22, 23, 34, 
+         37, 43, 45, 46, 47, 48, 49, 50, 58, 63, 64, 65, 66, 67, 68, 70]]
+#%%
+ope = aaXX[18838:,[0]]
+clo = aaXX[18838:,[1]]
+#%% Split
+X_tra,X_te,y_train,y_test=train_test_split(X,y,test_size=0.2, shuffle=False, random_state=0)
+#%% Processing
 sc = StandardScaler()
+#norm = Normalizer()
 
 sel = VarianceThreshold(threshold=(0.8 * (1 - .8)))
-X_train = sel.fit_transform(X_train)
-X_test =sel.transform(X_test)
+X_trai = sel.fit_transform(X_tra)
+X_tes =sel.transform(X_te)
 
 
-X_train = sc.fit_transform(X_train)
-X_test = sc.transform(X_test)
+X_train = sc.fit_transform(X_trai)
+X_test = sc.transform(X_tes)
 
+#X_train = norm.fit_transform(X_train)
+#X_test = norm.transform(X_test)
+#%% Model
 
-'''
-c=10
-
-clf = SVC(C=c, degree=1, kernel="rbf")
+c=120
+gamma = 0.001
+clf = SVC(C=c, gamma=gamma, kernel="rbf", class_weight="balanced")
 clf.fit(X_train, y_train.ravel())
 
 
 y_pred = clf.predict(X_test)
 
-df = pd.DataFrame (y_pred)
-
-filepath = 'sss1s.xlsx'
-
-df.to_excel(filepath, index=False)
-
 cm = confusion_matrix(y_test, y_pred)
-
+'''
 print('Training set metrics:')
 print('Accuracy:', accuracy_score(y_train, clf.predict(X_train)))
 print('Precision:', precision_score(y_train, clf.predict(X_train)))
 print('Recall:', recall_score(y_train, clf.predict(X_train)))
-
+'''
 print('Test set metrics:')
 print('Accuracy:', accuracy_score(y_test, y_pred))
 print('Precision:', precision_score(y_test, y_pred))
@@ -213,18 +220,84 @@ print('Recall:', recall_score(y_test, y_pred))
 print(cm)
 
 print(f1_score(y_test, y_pred))
-'''
+
+#%% Hyperparameter
 splits = TimeSeriesSplit(n_splits=5)
 
-C_range = [5, 10, 25]
-gamma_range = np.logspace(-3, 2, 6)
+#C_range = [40, 50, 60]
+#gamma_range = [0.0001, 0.001, 0.01]
 
-param_grid = dict(gamma=gamma_range, C=C_range)
+#param_grid = dict(gamma=gamma_range, C=C_range)
 
-#param_grid = {"C": [10, 25, 50], "kernel": ["linear", "poly", "rbf", "sigmoid"], "gamma"} 
+param_grid = {"C": [25, 50, 100, 120], "kernel": ["rbf", "sigmoid"], 
+              "gamma": [0.0001, 0.001, 0.01], "class_weight":["balanced"],
+              "cache_size":[200, 400, 600]} 
 
-grid =RandomizedSearchCV(SVC(kernel = "rbf"), param_grid, scoring = "accuracy", cv=splits, verbose=2, n_jobs=-1)
+grid =RandomizedSearchCV(SVC(), param_grid, scoring = "precision", cv=splits, verbose=2, n_jobs=-1)
 
 grid.fit(X_train, y_train.ravel())
 
 print(grid.best_params_)
+
+#%%Method of feature selection
+
+sfs = SFS(SVC(), k_features=40, forward=True, 
+          floating=False, scoring = 'accuracy', verbose=2, cv = splits, n_jobs=-1)
+
+sfs = sfs.fit(X_train, y_train.ravel())
+
+print(sfs.subsets_)
+#%% Weights
+
+# loop where the magic happens
+# Agent
+# relative agent profit
+cum_sum = 1
+# portfolio alocation
+port_aloc = 0.05
+win_factor = 1.1
+lose_factor = 0.8
+# win situation
+def win(port_aloc):
+    new_aloc = port_aloc * 1.5
+    if new_aloc > 1:
+        return 1
+    else:
+        return new_aloc
+# lose situation
+def lose(port_aloc):
+    return port_aloc * 0.5
+
+# recalculate alocation
+def win_or_lose(gainz, pitaquepariu):
+    if gainz > 0:
+        return win(pitaquepariu)
+    else:
+        return lose(pitaquepariu)
+    
+# Agent decisions
+for i in range(len(y_pred)):
+    if y_pred[i] == 1:
+        order = 1
+    else:
+        order = -1    
+    gains = ((clo[i]-ope[i])/ope[i])*order
+    cum_sum = cum_sum*(1+gains*port_aloc)
+    port_aloc = win_or_lose(gains, port_aloc)
+    
+print(cum_sum)
+#%% Revenue
+ret = list()
+#cl = X_te[:,[1]]
+#op = X_te[:,[0]]
+
+for i in range(len(y_pred)):  
+    gains = ((clo[i]-ope[i])/ope[i])*y_pred[i]
+    ret.append(gains)
+    
+print(cum_sum)
+print(np.mean(ret)*24*365)
+
+#%% results from prediction
+
+classify = np.vstack((y_train,y_pred[:, None]))
